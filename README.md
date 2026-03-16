@@ -21,40 +21,40 @@ CLIP-style contrastive alignment has been applied to image–text and audio–te
 ## How it works
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    FAILSENSE PIPELINE                    │
-│                                                         │
-│  Sensor Stream          Text Corpus                     │
-│  (NASA CMAPSS)          (Maintenance Logs)              │
-│       │                       │                         │
-│  Sliding Window           SBERT Encoder                 │
-│  + Autoencoder            (all-MiniLM-L6-v2)           │
-│       │                       │                         │
-│  256-d anomaly vec        384-d text vec                │
-│       │                       │                         │
-│  ┌────▼───────────────────────▼────┐                   │
-│  │   Contrastive Projection Heads  │                   │
-│  │   InfoNCE Loss (shared 256-d)   │                   │
-│  └────────────────┬────────────────┘                   │
-│                   │                                     │
-│            FAISS Index                                  │
-│         (cross-modal kNN)                               │
-│                   │                                     │
-│         Zero-Shot Classifier                            │
-│         (DeBERTa NLI — failure modes)                  │
-│                   │                                     │
-│           LLM Reasoning Agent                           │
-│      (GPT-4o / Llama-3 via Groq)                       │
-│                   │                                     │
-│    ┌──────────────▼──────────────────┐                 │
-│    │  Structured Output              │                 │
-│    │  · Failure mode + confidence    │                 │
-│    │  · Estimated RUL (cycles)       │                 │
-│    │  · Mechanistic explanation      │                 │
-│    │  · Recommended action           │                 │
-│    │  · Retrieved evidence citations │                 │
-│    └─────────────────────────────────┘                 │
-└─────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────┐
+│                    FAILSENSE PIPELINE                 │
+│                                                       │
+│  Sensor Stream          Text Corpus                   │
+│  (NASA CMAPSS)          (Maintenance Logs)            │
+│       │                       │                       │
+│  Sliding Window           SBERT Encoder               │
+│  + Autoencoder            (all-MiniLM-L6-v2)          │
+│       │                       │                       │
+│  256-d anomaly vec        384-d text vec              │
+│       │                       │                       │
+│  ┌────▼───────────────────────▼────┐                  │
+│  │   Contrastive Projection Heads  │                  │
+│  │   InfoNCE Loss (shared 256-d)   │                  │
+│  └────────────────┬────────────────┘                  │
+│                   │                                   │
+│            FAISS Index                                │
+│         (cross-modal kNN)                             │
+│                   │                                   │
+│         Zero-Shot Classifier                          │
+│         (DeBERTa NLI — failure modes)                 │
+│                   │                                   │
+│           LLM Reasoning Agent                         │
+│      (GPT-4o / Llama-3 via Groq)                      │
+│                   │                                   │
+│    ┌──────────────▼──────────────────┐                │
+│    │  Structured Output              │                │
+│    │  · Failure mode + confidence    │                │
+│    │  · Estimated RUL (cycles)       │                │
+│    │  · Mechanistic explanation      │                │
+│    │  · Recommended action           │                │
+│    │  · Retrieved evidence citations │                │
+│    └─────────────────────────────────┘                │
+└───────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -249,4 +249,4 @@ If you find this work useful:
 
 **Revanth Naik Kethavath** · [LinkedIn](https://linkedin.com/in/revanth-nayak) · [GitHub](https://github.com/revanthsonu) · krevanthnaik@gmail.com
 
-BTech CS — IIT Hyderabad · MS CS — UT Dallas (May 2026) · GRE 326 (168Q/158V)
+BTech — IIT Hyderabad · MS CS — UT Dallas (May 2026) · GRE 326 (168Q/158V)
