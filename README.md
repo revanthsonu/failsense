@@ -1,52 +1,24 @@
-# FailSense — Cross-Modal RAG for Industrial Failure Prediction
+# FailSense
 
-> **Aligning multivariate sensor anomaly embeddings with natural language maintenance records via contrastive learning — without paired supervision.**
+**Cross-modal RAG for industrial predictive maintenance** — aligning multivariate sensor anomaly embeddings with natural language maintenance records via contrastive learning, without paired supervision.
 
-[![HuggingFace Space](https://img.shields.io/badge/🤗-Live%20Demo-blue)](https://huggingface.co/spaces/revanthsonu/failsense)
+[![CI](https://github.com/revanthsonu/failsense/actions/workflows/ci.yml/badge.svg)](https://github.com/revanthsonu/failsense/actions)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Status: Active](https://img.shields.io/badge/status-active%20development-green)]()
+[![Demo: Coming Soon](https://img.shields.io/badge/🤗%20demo-coming%20soon-lightgrey)]()
 
 ---
 
-## The Problem
+Industrial equipment generates two data streams that have never been connected: continuous **sensor telemetry** and free-text **maintenance logs** written by technicians. Current systems treat them independently — threshold alerts have no memory of past failures, and keyword search over logs has no awareness of the sensor context.
 
-Industrial equipment generates two parallel data streams that have never been
-intelligently connected:
+FailSense bridges this gap. A 1D CNN autoencoder encodes sliding sensor windows into 256-d anomaly vectors. SBERT encodes maintenance logs into 384-d text vectors. Two projection heads, trained with InfoNCE loss (same objective as CLIP), pull matching sensor–text pairs together in a shared 256-d latent space — **without requiring explicitly paired training data**. At inference, a live sensor anomaly queries a FAISS index cross-modally, retrieves the most semantically relevant past maintenance events, and an LLM reasoning agent synthesizes a structured diagnosis: failure mode, estimated remaining useful life, and recommended action.
 
-- **Sensor telemetry** — thousands of channels (vibration, temperature, pressure,
-  current draw) sampled continuously
-- **Maintenance logs** — free-text records written by technicians after every
-  inspection or repair
-
-Current approaches treat these streams independently. Threshold-based alerting
-ignores the text corpus entirely. Search over maintenance logs ignores the sensor
-context entirely. The result: slow, reactive maintenance with high false-positive
-rates and no mechanistic explanation of *why* an anomaly is occurring.
+CLIP-style contrastive alignment has been applied to image–text and audio–text pairs. **Aligning multivariate time-series anomaly embeddings with unstructured maintenance text is an open problem with no published benchmark.** FailSense defines the task, proposes a baseline, and evaluates on the NASA CMAPSS turbofan degradation dataset.
 
 ---
 
-## The Research Contribution
-
-We propose **FailSense** — a cross-modal retrieval-augmented generation framework
-that:
-
-1. Embeds sensor windows and maintenance text into a **shared latent space** via
-   contrastive projection heads trained with InfoNCE loss
-2. Enables **cross-modal retrieval**: query with a live sensor anomaly, retrieve
-   the most semantically similar historical maintenance events
-3. Feeds retrieved evidence to an **LLM reasoning agent** that produces a
-   mechanistic failure explanation with urgency score and recommended action
-
-**Why this is novel:** CLIP-style contrastive alignment has been applied to
-image-text and audio-text pairs. Aligning multivariate time-series anomaly
-representations with unstructured maintenance text is an open problem with no
-published benchmark. This work defines the task, proposes a baseline, and
-evaluates on the NASA CMAPSS turbofan degradation dataset.
-
----
-
-## Architecture
+## How it works
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -58,7 +30,7 @@ evaluates on the NASA CMAPSS turbofan degradation dataset.
 │  Sliding Window           SBERT Encoder                 │
 │  + Autoencoder            (all-MiniLM-L6-v2)           │
 │       │                       │                         │
-│  512-d anomaly vec        768-d text vec                │
+│  256-d anomaly vec        384-d text vec                │
 │       │                       │                         │
 │  ┌────▼───────────────────────▼────┐                   │
 │  │   Contrastive Projection Heads  │                   │
@@ -87,16 +59,16 @@ evaluates on the NASA CMAPSS turbofan degradation dataset.
 
 ---
 
-## Results (updating as experiments run)
+## Results
 
-| Method | Retrieval P@5 | RUL MAE (cycles) | Lead Time (hrs) | FP Rate |
-|--------|--------------|-----------------|-----------------|---------|
-| Random baseline | 0.12 | — | — | — |
-| Text-only RAG | 0.31 | — | — | — |
-| Sensor kNN (no alignment) | 0.28 | — | — | — |
-| **FailSense (ours)** | **TBD** | **TBD** | **TBD** | **TBD** |
+Training in progress. Baselines and FailSense results will be populated once contrastive alignment training completes (est. Day 7). See [research log](docs/research_log.md) for current status.
 
-*Results will be populated as training completes. Target: >0.50 P@5, >40% lead time improvement over threshold baseline.*
+| Method | Retrieval P@5 | RUL MAE (cycles) | Lead Time | FP Rate |
+|--------|--------------|-----------------|-----------|---------|
+| Random baseline | — | — | — | — |
+| Text-only RAG | — | — | — | — |
+| Sensor kNN (no alignment) | — | — | — | — |
+| **FailSense (ours)** | — | — | — | — |
 
 ---
 
@@ -116,7 +88,7 @@ evaluates on the NASA CMAPSS turbofan degradation dataset.
 
 **Sensors:** NASA CMAPSS Turbofan Engine Degradation Simulation Dataset
 - 4 sub-datasets (FD001–FD004), 100 training engines per set
-- 26 sensor channels, sampled until failure
+- 26 raw sensor channels; 7 near-zero-variance channels dropped → **14 informative sensors** used
 - Download: [NASA Prognostics Data Repository](https://data.nasa.gov/dataset/C-MAPSS-Aircraft-Engine-Simulator-Data/xaut-bemq)
 
 **Maintenance Logs:** Synthetically generated using GPT-4o seeded with:
@@ -134,50 +106,126 @@ git clone https://github.com/revanthsonu/failsense
 cd failsense
 pip install -r requirements.txt
 
-# Download NASA CMAPSS data
-python src/ingestion/download_data.py
-
-# Generate synthetic maintenance logs
-python src/ingestion/generate_logs.py --n_logs 1200
-
-# Run full pipeline
-python src/main.py --mode demo
+# Set your OpenAI key (needed for log generation only)
+cp .env.example .env
+# edit .env: OPENAI_API_KEY=sk-...
 ```
+
+**Step 1 — Data**
+```bash
+# Download NASA CMAPSS manually from:
+# https://data.nasa.gov/dataset/C-MAPSS-Aircraft-Engine-Simulator-Data/xaut-bemq
+# Place train_FD001.txt, test_FD001.txt, RUL_FD001.txt into data/raw/
+
+python src/ingestion/preprocess.py --data_dir data/raw --subset FD001
+python src/ingestion/generate_logs.py --n_logs 1200
+```
+
+**Step 2 — Train autoencoder** *(Day 2, ~20 min on CPU)*
+```bash
+python src/models/train_autoencoder.py --epochs 50
+# checkpoint → checkpoints/autoencoder_best.pth
+# MLflow UI: mlflow ui
+```
+
+**Step 3 — Build baseline FAISS index** *(Day 3)*
+```bash
+python src/retrieval/build_index.py
+# index → data/processed/faiss_index.bin
+```
+
+**Step 4 — Train contrastive alignment** *(Day 3)*
+```bash
+python src/models/train_contrastive.py --ae_ckpt checkpoints/autoencoder_best.pth
+# checkpoint → checkpoints/alignment_best.pth
+```
+
+**Step 5 — Rebuild index with alignment**
+```bash
+python src/retrieval/build_index.py --alignment_ckpt checkpoints/alignment_best.pth
+```
+
+**Smoke-test models only (no data needed)**
+```bash
+python src/models/autoencoder.py
+python src/models/contrastive.py
+```
+
+> Agent, API, and demo app are in active development (Days 8–10). See [research log](docs/research_log.md).
 
 ---
 
-## Research Log
+## Design decisions
 
-*Design decisions documented as they're made — this log is part of the research contribution.*
+*Key choices logged as they're made — this trail informs the paper's methodology section.*
 
 ### Day 1 — March 12, 2026
 - Initialized repo and project structure
 - Defined formal problem statement (see `docs/problem_statement.md`)
 - Selected NASA CMAPSS FD001 as primary evaluation dataset
-- Decision: use sliding window of 30 time steps × 26 sensors = 780-dim input to autoencoder
-- Decision: autoencoder bottleneck at 512-d (matches SBERT output order of magnitude)
+- Decision: drop 7 near-zero-variance sensors from CMAPSS (1,5,6,10,16,18,19) → 14 informative sensors remain
+- Decision: sliding window of 30 time steps × 14 sensors = 420-dim input to autoencoder
+- Decision: autoencoder bottleneck at 256-d; SBERT output 384-d; shared projection space 256-d
 - Open question: optimal InfoNCE temperature parameter τ — will ablate over {0.07, 0.1, 0.2}
+
+### Day 2 — March 13, 2026
+- Built autoencoder training loop (`train_autoencoder.py`) with AdamW + cosine LR + MLflow tracking
+- Added `_check_anomaly_separation()` post-training sanity check — failure windows should score >2× healthy
+- Built synthetic maintenance log generator (`generate_logs.py`) via GPT-4o with turbofan taxonomy
+
+### Day 3 — March 14, 2026
+- Built SBERT embedding pipeline and FAISS IVF index (`build_index.py`)
+- Added `CrossModalRetriever` class — wraps FAISS for cross-modal kNN at inference
+- Built contrastive training loop (`train_contrastive.py`) — freezes AE encoder, trains projection heads only
+- Decision: use in-batch negatives (same as CLIP) — no hard negative mining yet; add if P@5 < 0.35
+
+### Day 4 — March 15, 2026
+- Built zero-shot failure mode classifier (`classifier.py`) — DeBERTa NLI, no labelled data needed
+- Added `SENSOR_TO_FAILURE` mapping for proxy ground-truth labels on CMAPSS windows
+- Built retrieval evaluation script (`eval/evaluate_retrieval.py`) — compares all 4 methods at P@{1,3,5,10}
+- Decision: use proxy failure mode labels derived from top-degrading sensor for evaluation consistency
+- Open question: does failure-mode-matched pair construction in contrastive training improve P@5 by >10%?
+
+### Day 5 — March 15, 2026
+- Built LLM reasoning agent (`agent/agent.py`) with 3 tools: get_sensor_history, query_maintenance_db, estimate_rul
+- Added `EngineMemory` — sliding deque of last 48 anomaly readings per engine; tracks trend
+- Added `FailureDiagnosis` Pydantic schema — 8 required fields, structured JSON output
+- Decision: temperature=0.1 for agent to ensure structured output consistency
+- Decision: fallback to classification result if JSON parse fails — agent never returns empty
 
 ---
 
-## Project Structure
+## Project structure
 
 ```
 failsense/
 ├── data/
-│   ├── raw/                    # NASA CMAPSS raw files
-│   ├── processed/              # Windowed sensor arrays + embeddings
-│   └── synthetic_logs/         # Generated maintenance text corpus
+│   ├── raw/                         # NASA CMAPSS raw files (not committed)
+│   ├── processed/                   # Windowed arrays, embeddings, FAISS index
+│   └── synthetic_logs/              # Generated maintenance text corpus
 ├── src/
-│   ├── ingestion/              # Data download, preprocessing, log generation
-│   ├── models/                 # Autoencoder, projection heads, contrastive loss
-│   ├── retrieval/              # FAISS index build + cross-modal search
-│   ├── agent/                  # LLM agent, tool definitions, memory
-│   └── api/                    # FastAPI backend
-├── notebooks/                  # Exploratory analysis, visualizations
-├── eval/                       # Evaluation scripts, baseline comparisons
-├── docs/                       # Problem statement, paper draft
-└── tests/                      # Unit tests
+│   ├── ingestion/
+│   │   ├── preprocess.py            # CMAPSS loader, sliding window extractor
+│   │   └── generate_logs.py         # GPT-4o synthetic log generator
+│   ├── models/
+│   │   ├── autoencoder.py           # 1D CNN autoencoder architecture
+│   │   ├── train_autoencoder.py     # Training loop + MLflow tracking
+│   │   ├── contrastive.py           # Projection heads + InfoNCE loss
+│   │   ├── train_contrastive.py     # Contrastive alignment training loop
+│   │   └── classifier.py           # Zero-shot failure mode classifier (DeBERTa NLI)
+│   ├── retrieval/
+│   │   └── build_index.py           # SBERT embedding + FAISS index builder
+│   ├── agent/
+│   │   └── agent.py                 # LLM reasoning agent, 3 tools, Pydantic output
+│   └── api/                         # FastAPI backend [in progress — Day 8]
+├── eval/
+│   └── evaluate_retrieval.py        # P@k evaluation, 4-method comparison
+├── notebooks/                       # EDA, visualizations [in progress]
+├── docs/
+│   ├── problem_statement.md         # Formal problem formulation
+│   └── research_log.md              # Daily design decisions
+└── tests/
+    └── test_models.py               # Smoke tests for autoencoder + contrastive
 ```
 
 ---
@@ -199,6 +247,6 @@ If you find this work useful:
 
 ## Author
 
-**Revanth Naik Kethavath** · [LinkedIn](https://linkedin.com/in/revanth-nayak) · [GitHub](https://github.com/revanthsonu)
+**Revanth Naik Kethavath** · [LinkedIn](https://linkedin.com/in/revanth-nayak) · [GitHub](https://github.com/revanthsonu) · krevanthnaik@gmail.com
 
-MS Computer Science, IIT Hyderabad (BTech) · GRE 326 (168Q)
+BTech CS — IIT Hyderabad · MS CS — UT Dallas (May 2026) · GRE 326 (168Q/158V)
